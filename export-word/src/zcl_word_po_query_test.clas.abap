@@ -147,7 +147,7 @@ CLASS zcl_word_po_query_test IMPLEMENTATION.
     LOOP AT ct_result ASSIGNING FIELD-SYMBOL(<ls_result>).
       DATA(ls_doc) = VALUE ty_doc( purchase_order = <ls_result>-PurchaseOrder
                                    company_code   = <ls_result>-CompanyCode
-                                   supplier       = |{ <ls_result>-Supplier ALPHA = OUT }|
+                                   supplier       = condense( |{ <ls_result>-Supplier ALPHA = OUT }| )
                                    supplier_name  = <ls_result>-SupplierName
                                    po_date        = <ls_result>-PurchaseOrderDate
                                    currency       = <ls_result>-DocumentCurrency

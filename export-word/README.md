@@ -51,9 +51,7 @@ Báo lỗi sớm: tag không có dữ liệu → `ev_error = "Thiếu dữ liệ
 
 ## Trạng thái
 
-- Thuật toán (gộp tag, nhân dòng, header/footer, escape `<` `&`) đã chạy đúng bằng **bản port Python** trên template mẫu.
-- `[Unverified — chưa qua compiler tenant]` toàn bộ ABAP. Điểm cần rà khi activate:
-  - `cl_abap_zip` `get`/`delete`/`add` (tham số, exception)
-  - `count( … pcre = )`, `matches( … pcre = )`, `FIND ALL OCCURRENCES OF PCRE … RESULTS`
-  - Hàm functional có `CHANGING` gọi trong biểu thức (`expand_rows`, `fill_tags`)
-  - `abap.cuky` trong custom entity; `ORDER BY (lv_order)` + `UP TO … OFFSET`
+- 2026-10-18: **chạy thật trên nafoods** — pull abapGit từ repo `NAF_LOCAL`, activate, tải template, mở đơn
+  `4500000004` → file Word đúng (header/footer, bảng item, tổng tiền VND định dạng đúng, tag bị cắt đã gộp).
+- Sửa sau lần chạy đầu: mã NCC có khoảng trắng thừa sau `ALPHA = OUT` → bọc `condense( )`.
+- Chưa thử: đơn nhiều item, template soạn tay bằng Word (tag bị cắt nhiều kiểu hơn), text box.
