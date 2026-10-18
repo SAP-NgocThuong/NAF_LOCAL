@@ -22,8 +22,8 @@ annotate view ZC_WORD_TMPL_TEST with
   @UI.identification: [ { position: 20, label: 'Mô tả' } ]
   Description;
 
-  @UI.lineItem:       [ { position: 30, label: 'Template (.docx)' } ]
-  @UI.identification: [ { position: 30, label: 'Template (.docx)' } ]
+  @UI.lineItem:       [ { position: 30, label: 'File (.docx / ảnh)' } ]
+  @UI.identification: [ { position: 30, label: 'File (.docx / ảnh)' } ]
   TmplContent;
 
   @UI.hidden: true

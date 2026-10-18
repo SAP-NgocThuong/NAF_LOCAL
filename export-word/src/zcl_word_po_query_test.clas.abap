@@ -7,20 +7,30 @@ CLASS zcl_word_po_query_test DEFINITION
     INTERFACES if_rap_query_provider.
 
   PRIVATE SECTION.
-    CONSTANTS c_tmpl_id TYPE ztb_wdtpl_test-tmpl_id VALUE 'PO'.
+    CONSTANTS: c_tmpl_id TYPE ztb_wdtpl_test-tmpl_id VALUE 'PO',
+               c_sign_id TYPE ztb_wdtpl_test-tmpl_id VALUE 'SIGN'.
 
     TYPES tt_result TYPE STANDARD TABLE OF zce_word_po_test WITH EMPTY KEY.
 
     TYPES: BEGIN OF ty_item,
-             item     TYPE string,
-             material TYPE string,
-             text     TYPE string,
-             qty      TYPE string,
-             unit     TYPE string,
-             price    TYPE string,
-             amount   TYPE string,
+             is_group    TYPE abap_bool,
+             is_item     TYPE abap_bool,
+             is_subtotal TYPE abap_bool,
+             group_label TYPE string,
+             item        TYPE string,
+             material    TYPE string,
+             text        TYPE string,
+             qty         TYPE string,
+             unit        TYPE string,
+             price       TYPE string,
+             amount      TYPE string,
            END OF ty_item,
            tt_item TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY,
+           BEGIN OF ty_copy,
+             label   TYPE string,
+             is_last TYPE abap_bool,
+           END OF ty_copy,
+           tt_copy TYPE STANDARD TABLE OF ty_copy WITH EMPTY KEY,
            BEGIN OF ty_doc,
              purchase_order TYPE string,
              company_code   TYPE string,
@@ -29,8 +39,13 @@ CLASS zcl_word_po_query_test DEFINITION
              po_date        TYPE d,
              currency       TYPE string,
              total          TYPE string,
+             total_words    TYPE string,
+             has_zero_price TYPE abap_bool,
+             note           TYPE string,
              printed_by     TYPE string,
+             sign           TYPE xstring,
              items          TYPE tt_item,
+             copies         TYPE tt_copy,
            END OF ty_doc.
 
     METHODS read_header
@@ -134,6 +149,14 @@ CLASS zcl_word_po_query_test IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    SELECT tmpl_content
+      FROM ztb_wdtpl_test
+      WHERE tmpl_id = @c_sign_id
+      ORDER BY created_at DESCENDING
+      INTO @DATA(lv_sign)
+      UP TO 1 ROWS.
+    ENDSELECT.
+
     SELECT PurchaseOrder, PurchaseOrderItem, Material, PurchaseOrderItemText,
            OrderQuantity, PurchaseOrderQuantityUnit, NetPriceAmount, NetAmount
       FROM i_purchaseorderitemapi01
@@ -145,28 +168,59 @@ CLASS zcl_word_po_query_test IMPLEMENTATION.
     DATA(lv_user) = cl_abap_context_info=>get_user_technical_name( ).
 
     LOOP AT ct_result ASSIGNING FIELD-SYMBOL(<ls_result>).
+      DATA(lv_cur) = <ls_result>-DocumentCurrency.
       DATA(ls_doc) = VALUE ty_doc( purchase_order = <ls_result>-PurchaseOrder
                                    company_code   = <ls_result>-CompanyCode
                                    supplier       = condense( |{ <ls_result>-Supplier ALPHA = OUT }| )
                                    supplier_name  = <ls_result>-SupplierName
                                    po_date        = <ls_result>-PurchaseOrderDate
-                                   currency       = <ls_result>-DocumentCurrency
-                                   printed_by     = lv_user ).
+                                   currency       = lv_cur
+                                   note           = |Giao hàng tại kho công ty { <ls_result>-CompanyCode }|
+                                                 && |{ cl_abap_char_utilities=>newline }Liên hệ: phòng mua hàng|
+                                   printed_by     = lv_user
+                                   sign           = lv_sign
+                                   copies         = VALUE #( ( label = `Liên 1: Lưu` )
+                                                             ( label = `Liên 2: Giao nhà cung cấp` is_last = abap_true ) ) ).
 
       " Tien CURR doc thang bang SQL: VND luu theo quy uoc 2 so le -> dinh dang qua CURRENCY de dung so le
+      " Nhom dong: hang co gia / hang chua co gia, moi nhom co dong tieu de + dong cong nhom
       DATA lv_total TYPE i_purchaseorderitemapi01-NetAmount.
+      DATA lv_group_sum TYPE i_purchaseorderitemapi01-NetAmount.
       CLEAR lv_total.
-      LOOP AT lt_item INTO DATA(ls_item) WHERE PurchaseOrder = <ls_result>-PurchaseOrder.
-        lv_total += ls_item-NetAmount.
-        APPEND VALUE #( item     = |{ ls_item-PurchaseOrderItem ALPHA = OUT }|
-                        material = |{ ls_item-Material ALPHA = OUT }|
-                        text     = ls_item-PurchaseOrderItemText
-                        qty      = |{ CONV decfloat34( ls_item-OrderQuantity ) NUMBER = USER }|
-                        unit     = ls_item-PurchaseOrderQuantityUnit
-                        price    = |{ ls_item-NetPriceAmount CURRENCY = <ls_result>-DocumentCurrency NUMBER = USER }|
-                        amount   = |{ ls_item-NetAmount CURRENCY = <ls_result>-DocumentCurrency NUMBER = USER }| ) TO ls_doc-items.
-      ENDLOOP.
-      ls_doc-total = |{ lv_total CURRENCY = <ls_result>-DocumentCurrency NUMBER = USER }|.
+      DO 2 TIMES.
+        DATA(lv_priced) = xsdbool( sy-index = 1 ).
+        CLEAR lv_group_sum.
+        DATA(lt_rows) = VALUE tt_item( ).
+        LOOP AT lt_item INTO DATA(ls_item) WHERE PurchaseOrder = <ls_result>-PurchaseOrder.
+          IF xsdbool( ls_item-NetPriceAmount <> 0 ) <> lv_priced.
+            CONTINUE.
+          ENDIF.
+          lv_group_sum += ls_item-NetAmount.
+          APPEND VALUE #( is_item  = abap_true
+                          item     = |{ ls_item-PurchaseOrderItem ALPHA = OUT }|
+                          material = |{ ls_item-Material ALPHA = OUT }|
+                          text     = ls_item-PurchaseOrderItemText
+                          qty      = |{ CONV decfloat34( ls_item-OrderQuantity ) NUMBER = USER }|
+                          unit     = ls_item-PurchaseOrderQuantityUnit
+                          price    = |{ ls_item-NetPriceAmount CURRENCY = lv_cur NUMBER = USER }|
+                          amount   = |{ ls_item-NetAmount CURRENCY = lv_cur NUMBER = USER }| ) TO lt_rows.
+        ENDLOOP.
+        IF lt_rows IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        IF lv_priced = abap_false.
+          ls_doc-has_zero_price = abap_true.
+        ENDIF.
+        DATA(lv_label) = COND string( WHEN lv_priced = abap_true THEN `Hàng có giá` ELSE `Hàng chưa có giá` ).
+        APPEND VALUE #( is_group = abap_true group_label = lv_label ) TO ls_doc-items.
+        APPEND LINES OF lt_rows TO ls_doc-items.
+        APPEND VALUE #( is_subtotal = abap_true
+                        group_label = |Cộng { to_lower( lv_label ) }|
+                        amount      = |{ lv_group_sum CURRENCY = lv_cur NUMBER = USER }| ) TO ls_doc-items.
+        lv_total += lv_group_sum.
+      ENDDO.
+      ls_doc-total       = |{ lv_total CURRENCY = lv_cur NUMBER = USER }|.
+      ls_doc-total_words = |{ zcl_word_docx_test=>number_to_words_vn( CONV decfloat34( |{ lv_total CURRENCY = lv_cur NUMBER = RAW }| ) ) } đồng|.
 
       zcl_word_docx_test=>render( EXPORTING iv_template = lv_template
                                             is_data     = ls_doc

@@ -10,7 +10,8 @@ define root view entity ZC_WORD_TMPL_TEST
       Description,
       @Semantics.largeObject: { mimeType: 'TmplMime',
                                 fileName: 'TmplName',
-                                acceptableMimeTypes: [ 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ],
+                                acceptableMimeTypes: [ 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                                       'image/png', 'image/jpeg' ],
                                 contentDispositionPreference: #ATTACHMENT }
       TmplContent,
       @Semantics.mimeType: true
