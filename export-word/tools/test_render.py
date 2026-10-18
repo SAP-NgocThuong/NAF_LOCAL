@@ -33,7 +33,9 @@ data = dict(purchase_order='4500000004', company_code='V010', supplier='10000005
 r = wp.Renderer(open(sys.argv[1], 'rb').read())
 out = r.run(data)
 if out is None:
-    print('Thiếu dữ liệu:', ', '.join(r.missing))
+    for m in r.messages:
+        print(*m)
     sys.exit(1)
 open(sys.argv[3], 'wb').write(out)
-print('da tao', sys.argv[3])
+for m in r.messages:
+    print(*m)

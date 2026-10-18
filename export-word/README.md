@@ -51,6 +51,10 @@ Hàm phụ: `zcl_word_docx_test=>number_to_words_vn( 2640000 )` → `Hai triệu
 `CURRENCY = <loại tiền>` (field `CURR` VND đọc thẳng bằng SQL nhỏ hơn 100 lần — `knowledge/lessons.md`).
 Số thành chữ cho tiền: `|{ amount CURRENCY = cur NUMBER = RAW }|` → `decfloat34` → `number_to_words_vn`.
 
+Kết quả trả về: `ev_docx` (file), `ev_error` (chuỗi lỗi gộp, rỗng = thành công), `et_messages` (bảng `type`/`tag`/`text`:
+`E` lỗi → không sinh file · `W` cảnh báo, vẫn sinh (bảng rỗng, ảnh rỗng) · `S` thành công kèm dung lượng).
+Hằng `zcl_word_docx_test=>c_msg_type-error|warning|success`.
+
 Báo lỗi sớm — không sinh file khi: tag không có dữ liệu · tên field trong `#if`/`#each`/`rowif` sai · thiếu thẻ đóng ·
 ảnh không phải PNG/JPEG. Thông báo: `Thiếu dữ liệu: x, y`.
 
@@ -75,5 +79,7 @@ cảnh báo đỏ khi có dòng giá 0, ghi chú 2 dòng, ảnh chữ ký.
 - 2026-10-18: bản mở rộng (xuống dòng, `#each`, `#if`/`#ifnot`, `rowif`, ảnh PNG/JPEG, số thành chữ) — đã kiểm bằng
   **bản port Python 1-1** + **mở bằng Microsoft Word** (2 trang, 2 ảnh, xuất PDF đúng bố cục) và các ca biên
   (bảng rỗng, ảnh rỗng, JPEG, thiếu thẻ đóng, sai tên field, ảnh sai định dạng, 15 ca số thành chữ).
-  `[Unverified — chưa qua compiler tenant]` phần ABAP mới; điểm cần rà khi activate: `IN SECTION LENGTH … OF`,
-  `CONV i( x LENGTH 4 )`, `REF #( is_data )` với tham số generic, `NUMBER = RAW` kèm `CURRENCY`.
+- 2026-10-18: bản mở rộng **chạy thật trên nafoods** — đơn `4500000004` ra 2 liên, nhóm dòng, bằng chữ, ghi chú 2 dòng,
+  ảnh chữ ký. Lỗi lần đầu: PCRE ABAP coi `#` là comment → `${#each…}` không nhận → sửa `\#` (`knowledge/lessons.md`).
+  Báo lỗi: bấm GO → cột **Thông báo** thử sinh file từng dòng: đỏ = lỗi (không có file) · vàng = cảnh báo · xanh = Sẵn sàng.
+  Nội dung file chỉ giữ khi bấm tải. [Inference] GO chậm hơn vì mỗi dòng trong trang sinh thử 1 lần.

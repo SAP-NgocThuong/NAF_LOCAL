@@ -61,7 +61,11 @@ define custom entity ZCE_WORD_PO_TEST
       FileName          : abap.char(128);
 
       @EndUserText.label: 'Thông báo'
-      @UI.identification: [ { position: 70 } ]
+      @UI.lineItem:       [ { position: 70, criticality: 'MessageCriticality' } ]
+      @UI.identification: [ { position: 70, criticality: 'MessageCriticality' } ]
       @Consumption.filter.hidden: true
       Message           : abap.char(255);
+
+      @Consumption.filter.hidden: true
+      MessageCriticality : abap.int1;
 }

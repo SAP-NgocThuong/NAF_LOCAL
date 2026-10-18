@@ -121,10 +121,9 @@ def main(out, sign_out=None):
 
     if sign_out:
         from PIL import Image, ImageDraw
-        img = Image.new("RGB", (300, 120), "white")
+        img = Image.new("RGBA", (300, 120), (255, 255, 255, 0))  # nen trong suot, khong vien
         d = ImageDraw.Draw(img)
-        d.line([(20, 90), (80, 30), (120, 85), (170, 25), (220, 80), (280, 40)], fill=(20, 40, 160), width=5)
-        d.rectangle([2, 2, 297, 117], outline=(180, 180, 180))
+        d.line([(20, 90), (80, 30), (120, 85), (170, 25), (220, 80), (280, 40)], fill=(20, 40, 160, 255), width=5)
         img.save(sign_out)
         print("da tao", sign_out)
 

@@ -6,11 +6,25 @@ CLASS zcl_word_docx_test DEFINITION
   PUBLIC SECTION.
     CONSTANTS c_mime_docx TYPE string VALUE `application/vnd.openxmlformats-officedocument.wordprocessingml.document`.
 
+    CONSTANTS: BEGIN OF c_msg_type,
+                 error   TYPE c LENGTH 1 VALUE 'E',
+                 warning TYPE c LENGTH 1 VALUE 'W',
+                 success TYPE c LENGTH 1 VALUE 'S',
+               END OF c_msg_type.
+
+    TYPES: BEGIN OF ty_message,
+             type TYPE c LENGTH 1,
+             tag  TYPE string,
+             text TYPE string,
+           END OF ty_message,
+           tt_message TYPE STANDARD TABLE OF ty_message WITH EMPTY KEY.
+
     CLASS-METHODS render
       IMPORTING iv_template TYPE xstring
                 is_data     TYPE any
       EXPORTING ev_docx     TYPE xstring
-                ev_error    TYPE string.
+                ev_error    TYPE string
+                et_messages TYPE tt_message.
 
     CLASS-METHODS is_docx
       IMPORTING iv_content   TYPE xstring
@@ -46,7 +60,8 @@ CLASS zcl_word_docx_test DEFINITION
                c_break      TYPE string VALUE `</w:t><w:br/><w:t xml:space="preserve">`.
 
     DATA mo_zip     TYPE REF TO cl_abap_zip.
-    DATA mt_missing TYPE string_table.
+    DATA mt_missing  TYPE string_table.
+    DATA mt_messages TYPE tt_message.
     DATA mt_media   TYPE tt_media.
     DATA mt_ext     TYPE string_table.
     DATA mv_image   TYPE i.
@@ -55,7 +70,8 @@ CLASS zcl_word_docx_test DEFINITION
       IMPORTING iv_template TYPE xstring
                 is_data     TYPE any
       EXPORTING ev_docx     TYPE xstring
-                ev_error    TYPE string.
+                ev_error    TYPE string
+                et_messages TYPE tt_message.
 
     METHODS process_xml
       IMPORTING iv_xml        TYPE string
@@ -90,6 +106,11 @@ CLASS zcl_word_docx_test DEFINITION
 
     METHODS add_missing
       IMPORTING iv_tag TYPE string.
+
+    METHODS add_message
+      IMPORTING iv_type TYPE c
+                iv_tag  TYPE string
+                iv_text TYPE string.
 
     METHODS get_text
       IMPORTING iv_name        TYPE string
@@ -161,15 +182,18 @@ CLASS zcl_word_docx_test IMPLEMENTATION.
 
   METHOD render.
     " ${tag}, ${table:t.f} (dong bang, ${rowif:f}), ${#each:t}/${#if:f}/${#ifnot:f} (khoi doan van), ${image:f|cm}
-    CLEAR: ev_docx, ev_error.
+    " et_messages: E = loi (khong sinh file), W = canh bao (van sinh), S = thanh cong
+    CLEAR: ev_docx, ev_error, et_messages.
     IF is_docx( iv_template ) = abap_false.
       ev_error = `File template không phải .docx`.
+      et_messages = VALUE #( ( type = c_msg_type-error text = ev_error ) ).
       RETURN.
     ENDIF.
     NEW zcl_word_docx_test( )->run( EXPORTING iv_template = iv_template
                                               is_data     = is_data
                                     IMPORTING ev_docx     = ev_docx
-                                              ev_error    = ev_error ).
+                                              ev_error    = ev_error
+                                              et_messages = et_messages ).
   ENDMETHOD.
 
 
@@ -206,14 +230,19 @@ CLASS zcl_word_docx_test IMPLEMENTATION.
         add_content_types( ).
       CATCH cx_sy_conversion_codepage.
         ev_error = `Lỗi mã hóa ký tự trong template`.
+        add_message( iv_type = c_msg_type-error iv_tag = `` iv_text = ev_error ).
+        et_messages = mt_messages.
         RETURN.
     ENDTRY.
 
     IF mt_missing IS NOT INITIAL.
       ev_error = |Thiếu dữ liệu: { concat_lines_of( table = mt_missing sep = `, ` ) }|.
+      et_messages = mt_messages.
       RETURN.
     ENDIF.
     ev_docx = mo_zip->save( ).
+    add_message( iv_type = c_msg_type-success iv_tag = `` iv_text = |Đã tạo file ({ xstrlen( ev_docx ) } byte)| ).
+    et_messages = mt_messages.
   ENDMETHOD.
 
 
@@ -230,7 +259,7 @@ CLASS zcl_word_docx_test IMPLEMENTATION.
     " ${#if:f} / ${#ifnot:f} ... ${/if:f}: giu hoac bo khoi; doan van chua the luon bi bo
     rv_xml = iv_xml.
     DO.
-      FIND FIRST OCCURRENCE OF PCRE `\$\{#(each|if|ifnot):(\w+)\}` IN rv_xml
+      FIND FIRST OCCURRENCE OF PCRE `\$\{\#(each|if|ifnot):(\w+)\}` IN rv_xml
            MATCH OFFSET DATA(lv_pos) SUBMATCHES DATA(lv_kind) DATA(lv_name).
       IF sy-subrc <> 0.
         EXIT.
@@ -265,6 +294,9 @@ CLASS zcl_word_docx_test IMPLEMENTATION.
           IF <lt_lines> IS NOT ASSIGNED.
             add_missing( |#each:{ lv_name }| ).
           ELSE.
+            IF lines( <lt_lines> ) = 0.
+              add_message( iv_type = c_msg_type-warning iv_tag = |#each:{ lv_name }| iv_text = |Bảng { lv_name } rỗng, bỏ khối lặp| ).
+            ENDIF.
             LOOP AT <lt_lines> ASSIGNING FIELD-SYMBOL(<ls_line>).
               lv_out &&= process_xml( iv_xml   = lv_inner
                                       it_scope = VALUE #( ( REF #( <ls_line> ) ) ( LINES OF it_scope ) ) ).
@@ -327,6 +359,9 @@ CLASS zcl_word_docx_test IMPLEMENTATION.
       ENDIF.
 
       DATA(lv_out) = ``.
+      IF lines( <lt_lines> ) = 0.
+        add_message( iv_type = c_msg_type-warning iv_tag = |table:{ ls_first-table }| iv_text = |Bảng { ls_first-table } rỗng, bỏ dòng bảng| ).
+      ENDIF.
       LOOP AT <lt_lines> ASSIGNING FIELD-SYMBOL(<ls_line>).
         DATA(lt_line_scope) = VALUE tt_scope( ( REF #( <ls_line> ) ) ).
         DATA(lt_values) = scope_values( lt_line_scope ).
@@ -379,7 +414,9 @@ CLASS zcl_word_docx_test IMPLEMENTATION.
       ELSE.
         ASSIGN lr_image->* TO FIELD-SYMBOL(<lv_image>).
         DATA(lv_content) = CONV xstring( <lv_image> ).
-        IF lv_content IS NOT INITIAL.
+        IF lv_content IS INITIAL.
+          add_message( iv_type = c_msg_type-warning iv_tag = |image:{ lv_name }| iv_text = |Ảnh { lv_name } rỗng, bỏ ảnh| ).
+        ELSE.
           image_size( EXPORTING iv_image  = lv_content
                       IMPORTING ev_ext    = DATA(lv_ext)
                                 ev_width  = DATA(lv_px_w)
@@ -496,6 +533,14 @@ CLASS zcl_word_docx_test IMPLEMENTATION.
   METHOD add_missing.
     IF NOT line_exists( mt_missing[ table_line = iv_tag ] ).
       APPEND iv_tag TO mt_missing.
+      add_message( iv_type = c_msg_type-error iv_tag = iv_tag iv_text = |Thiếu dữ liệu: { iv_tag }| ).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD add_message.
+    IF NOT line_exists( mt_messages[ type = iv_type tag = iv_tag text = iv_text ] ).
+      APPEND VALUE #( type = iv_type tag = iv_tag text = iv_text ) TO mt_messages.
     ENDIF.
   ENDMETHOD.
 

@@ -1,4 +1,7 @@
-"""Ban port Python 1-1 cua ZCL_WORD_DOCX_TEST (ban mo rong) de thu tren file docx that."""
+"""Ban port Python 1-1 cua ZCL_WORD_DOCX_TEST de thu tren file docx that.
+
+Regex compile voi re.X vi PCRE cua ABAP mac dinh o che do extended (# la comment, bo khoang trang).
+"""
 import io
 import re
 import struct
@@ -7,13 +10,13 @@ import zipfile
 from decimal import Decimal
 from xml.sax.saxutils import escape
 
-PAR = re.compile(r'(?s)<w:p(?:\s[^>]*)?(?<!/)>.*?</w:p>')
-PAR_OPEN = re.compile(r'<w:p(?:\s[^>]*)?(?<!/)>')
-RUN = re.compile(r'<w:t(?:\s[^>]*)?>([^<]*)</w:t>')
-ROW = re.compile(r'(?s)<w:tr(?:\s[^>]*)?>.*?</w:tr>')
-TAG = re.compile(r'\$\{([^}<]*)\}')
-BLOCK = re.compile(r'\$\{#(each|if|ifnot):(\w+)\}')
-IMG = re.compile(r'\$\{image:(\w+)(?:\|([\d.]+))?\}')
+PAR = re.compile(r'(?s)<w:p(?:\s[^>]*)?(?<!/)>.*?</w:p>', re.X)
+PAR_OPEN = re.compile(r'<w:p(?:\s[^>]*)?(?<!/)>', re.X)
+RUN = re.compile(r'<w:t(?:\s[^>]*)?>([^<]*)</w:t>', re.X)
+ROW = re.compile(r'(?s)<w:tr(?:\s[^>]*)?>.*?</w:tr>', re.X)
+TAG = re.compile(r'\$\{([^}<]*)\}', re.X)
+BLOCK = re.compile(r'\$\{\#(each|if|ifnot):(\w+)\}', re.X)
+IMG = re.compile(r'\$\{image:(\w+)(?:\|([\d.]+))?\}', re.X)
 BREAK = '</w:t><w:br/><w:t xml:space="preserve">'
 EMU = 360000
 
@@ -101,11 +104,16 @@ class Renderer:
     def __init__(self, tpl):
         self.zin = zipfile.ZipFile(io.BytesIO(tpl))
         self.files = {n: self.zin.read(n) for n in self.zin.namelist()}
-        self.missing, self.media, self.ext, self.image = [], [], [], 0
+        self.missing, self.media, self.ext, self.image, self.messages = [], [], [], 0, []
+
+    def msg(self, typ, tag, text):
+        if (typ, tag, text) not in self.messages:
+            self.messages.append((typ, tag, text))
 
     def miss(self, t):
         if t not in self.missing:
             self.missing.append(t)
+            self.msg('E', t, 'Thiếu dữ liệu: ' + t)
 
     def process(self, xml, scope):
         xml = self.blocks(xml, scope)
@@ -134,6 +142,8 @@ class Renderer:
                 if r is None or not isinstance(r[0], list):
                     self.miss('#each:' + name)
                 else:
+                    if not r[0]:
+                        self.msg('W', '#each:' + name, 'Bảng %s rỗng, bỏ khối lặp' % name)
                     for line in r[0]:
                         out += self.process(inner, [line] + scope)
             elif find_comp(scope, name) is None:
@@ -164,6 +174,8 @@ class Renderer:
                 self.miss('table:' + tab)
                 continue
             out = ''
+            if not r[0]:
+                self.msg('W', 'table:' + tab, 'Bảng %s rỗng, bỏ dòng bảng' % tab)
             for line in r[0]:
                 ls = [line]
                 vals = scope_values(ls)
@@ -191,7 +203,9 @@ class Renderer:
             r = find_comp(scope, name)
             if r is None:
                 self.miss('image:' + name)
-            elif r[0]:
+            elif not r[0]:
+                self.msg('W', 'image:' + name, 'Ảnh %s rỗng, bỏ ảnh' % name)
+            else:
                 data = r[0]
                 ext, pw, ph = image_size(data)
                 if not ext:
@@ -268,6 +282,7 @@ class Renderer:
         with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
             for n, b in self.files.items():
                 z.writestr(n, b)
+        self.msg('S', '', 'Đã tạo file (%d byte)' % len(out.getvalue()))
         return out.getvalue()
 
 

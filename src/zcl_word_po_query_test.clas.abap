@@ -53,7 +53,8 @@ CLASS zcl_word_po_query_test DEFINITION
       RETURNING VALUE(rt_result) TYPE tt_result.
 
     METHODS add_files
-      CHANGING ct_result TYPE tt_result.
+      IMPORTING iv_keep_file TYPE abap_bool
+      CHANGING  ct_result    TYPE tt_result.
 ENDCLASS.
 
 
@@ -73,14 +74,14 @@ CLASS zcl_word_po_query_test IMPLEMENTATION.
     IF io_request->is_data_requested( ).
       DATA(lt_result) = read_header( io_request ).
 
-      " File chi sinh khi UI xin noi dung file (mo Object Page / bam tai), khong sinh cho ca danh sach
-      DATA(lt_requested) = io_request->get_requested_elements( ).
-      LOOP AT lt_requested INTO DATA(lv_element).
-        IF to_upper( lv_element ) = `FILECONTENT`.
-          add_files( CHANGING ct_result = lt_result ).
-          EXIT.
-        ENDIF.
-      ENDLOOP.
+      " Cot Thong bao (bam GO) -> thu sinh file tung dong de bao loi; noi dung file chi giu khi UI xin tai
+      DATA(lt_requested) = VALUE string_table( FOR lv_req IN io_request->get_requested_elements( ) ( to_upper( lv_req ) ) ).
+      DATA(lv_keep_file) = xsdbool( line_exists( lt_requested[ table_line = `FILECONTENT` ] ) ).
+      IF lv_keep_file = abap_true
+         OR line_exists( lt_requested[ table_line = `MESSAGE` ] )
+         OR line_exists( lt_requested[ table_line = `MESSAGECRITICALITY` ] ).
+        add_files( EXPORTING iv_keep_file = lv_keep_file CHANGING ct_result = lt_result ).
+      ENDIF.
 
       io_response->set_data( lt_result ).
     ENDIF.
@@ -144,7 +145,9 @@ CLASS zcl_word_po_query_test IMPLEMENTATION.
     ENDSELECT.
     IF lv_template IS INITIAL.
       LOOP AT ct_result ASSIGNING FIELD-SYMBOL(<ls_empty>).
-        <ls_empty>-Message = |Chưa có template mã { c_tmpl_id } trong app Template Word|.
+        <ls_empty>-Message            = |Chưa có template mã { c_tmpl_id } trong app Template Word|.
+        <ls_empty>-MessageCriticality = 1.
+        CLEAR: <ls_empty>-FileName, <ls_empty>-FileMime.
       ENDLOOP.
       RETURN.
     ENDIF.
@@ -225,8 +228,25 @@ CLASS zcl_word_po_query_test IMPLEMENTATION.
       zcl_word_docx_test=>render( EXPORTING iv_template = lv_template
                                             is_data     = ls_doc
                                   IMPORTING ev_docx     = <ls_result>-FileContent
-                                            ev_error    = DATA(lv_error) ).
-      <ls_result>-Message = lv_error.
+                                            ev_error    = DATA(lv_error)
+                                            et_messages = DATA(lt_message) ).
+      DATA(lv_has_warning) = xsdbool( line_exists( lt_message[ type = zcl_word_docx_test=>c_msg_type-warning ] ) ).
+      <ls_result>-Message = COND #( WHEN lv_error IS NOT INITIAL THEN lv_error
+                                    WHEN lv_has_warning = abap_true
+                                    THEN concat_lines_of( table = VALUE string_table( FOR ls_msg IN lt_message
+                                                                                      WHERE ( type = zcl_word_docx_test=>c_msg_type-warning )
+                                                                                      ( ls_msg-text ) )
+                                                          sep   = `; ` )
+                                    ELSE `Sẵn sàng` ).
+      " 1 = do (loi, khong co file) · 2 = vang (canh bao) · 3 = xanh
+      <ls_result>-MessageCriticality = COND #( WHEN lv_error IS NOT INITIAL THEN 1
+                                               WHEN lv_has_warning = abap_true THEN 2
+                                               ELSE 3 ).
+      IF lv_error IS NOT INITIAL.
+        CLEAR: <ls_result>-FileContent, <ls_result>-FileName, <ls_result>-FileMime.
+      ELSEIF iv_keep_file = abap_false.
+        CLEAR <ls_result>-FileContent.
+      ENDIF.
     ENDLOOP.
   ENDMETHOD.
 
