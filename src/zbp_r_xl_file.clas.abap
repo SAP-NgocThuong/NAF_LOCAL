@@ -1,0 +1,11 @@
+CLASS zbp_r_xl_file DEFINITION
+  PUBLIC
+  ABSTRACT
+  FINAL
+  FOR BEHAVIOR OF zr_xl_file.
+ENDCLASS.
+
+
+
+CLASS zbp_r_xl_file IMPLEMENTATION.
+ENDCLASS.

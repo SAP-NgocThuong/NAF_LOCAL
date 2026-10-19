@@ -1,0 +1,46 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: { typeName:       'File',
+                typeNamePlural: 'Kho file (template Excel, Word, ảnh)',
+                title:       { type: #STANDARD, value: 'FileId' },
+                description: { type: #STANDARD, value: 'Description' } },
+  presentationVariant: [ { sortOrder: [ { by: 'FileId',  direction: #ASC },
+                                        { by: 'Version', direction: #DESC } ] } ]
+}
+annotate view ZC_XL_FILE with
+{
+  @UI.facet: [ { id: 'general', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE,
+                 label: 'Thông tin file', position: 10 } ]
+
+  @UI.hidden: true
+  FileUuid;
+
+  @UI.lineItem:       [ { position: 10, label: 'Mã file' } ]
+  @UI.identification: [ { position: 10, label: 'Mã file' } ]
+  @UI.selectionField: [ { position: 10 } ]
+  FileId;
+
+  @UI.lineItem:       [ { position: 20, label: 'Phiên bản' } ]
+  @UI.identification: [ { position: 20, label: 'Phiên bản' } ]
+  Version;
+
+  @UI.lineItem:       [ { position: 30, label: 'Mô tả' } ]
+  @UI.identification: [ { position: 30, label: 'Mô tả' } ]
+  Description;
+
+  @UI.lineItem:       [ { position: 40, label: 'File' } ]
+  @UI.identification: [ { position: 40, label: 'File' } ]
+  FileContent;
+
+  @UI.lineItem:       [ { position: 50, label: 'Tên file' } ]
+  FileName;
+
+  @UI.hidden: true
+  MimeType;
+
+  @UI.lineItem:       [ { position: 60, label: 'Người tạo' } ]
+  CreatedBy;
+
+  @UI.lineItem:       [ { position: 70, label: 'Ngày tạo' } ]
+  CreatedAt;
+}

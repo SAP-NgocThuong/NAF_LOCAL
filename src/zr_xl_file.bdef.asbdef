@@ -1,0 +1,44 @@
+managed implementation in class zbp_r_xl_file unique;
+strict ( 2 );
+with draft;
+
+define behavior for ZR_XL_FILE alias File
+persistent table zxl_file
+draft table zxl_file_d
+lock master total etag LastChangedAt
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  create;
+  update;
+  delete;
+
+  field ( numbering : managed, readonly ) FileUuid;
+  field ( mandatory : create, readonly : update ) FileId;
+  field ( readonly ) Version, CreatedBy, CreatedAt, LocalLastChangedBy, LocalLastChangedAt, LastChangedAt;
+
+  determination setVersion on save { create; }
+  validation checkTemplate on save { create; field FileContent; }
+
+  draft action Activate optimized;
+  draft action Discard;
+  draft action Edit;
+  draft action Resume;
+  draft determine action Prepare { validation checkTemplate; }
+
+  mapping for zxl_file
+    {
+      FileUuid           = file_uuid;
+      FileId             = file_id;
+      Version            = version;
+      Description        = description;
+      FileContent        = file_content;
+      FileName           = file_name;
+      MimeType           = mime_type;
+      CreatedBy          = created_by;
+      CreatedAt          = created_at;
+      LocalLastChangedBy = local_last_changed_by;
+      LocalLastChangedAt = local_last_changed_at;
+      LastChangedAt      = last_changed_at;
+    }
+}

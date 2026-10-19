@@ -1,0 +1,4 @@
+@EndUserText.label: 'Service Word PO demo'
+define service ZUI_CORE_WORD_PO {
+  expose ZCE_CORE_WORD_PO as PurchaseOrder;
+}

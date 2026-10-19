@@ -1,9 +1,0 @@
-{
-  "BASEINFO": {
-    "FROM": [
-      "ZTB_WDTPL_TEST"
-    ],
-    "ASSOCIATED": [],
-    "BASE": []
-  }
-}

@@ -1,5 +1,0 @@
-@EndUserText.label: 'Service Word template test'
-define service ZUI_WORD_TMPL_TEST {
-  expose ZC_WORD_TMPL_TEST as Template;
-  expose ZCE_WORD_PO_TEST  as PurchaseOrder;
-}

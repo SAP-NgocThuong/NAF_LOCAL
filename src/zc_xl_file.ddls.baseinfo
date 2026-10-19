@@ -1,0 +1,11 @@
+{
+  "BASEINFO": {
+    "FROM": [
+      "ZR_XL_FILE"
+    ],
+    "ASSOCIATED": [],
+    "BASE": [
+      "ZR_XL_FILE"
+    ]
+  }
+}

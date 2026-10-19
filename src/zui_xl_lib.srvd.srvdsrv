@@ -1,0 +1,4 @@
+@EndUserText.label: 'Excel library - file store service'
+define service ZUI_XL_LIB {
+  expose ZC_XL_FILE as File;
+}
